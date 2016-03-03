@@ -23,7 +23,7 @@ public class Start {
             CONFIG.setDiscoveryEnabled(false);
         }
 
-        Ethereum ethereum = EthereumFactory.createEthereum();
+        Ethereum ethereum = EthereumFactory.createEthereum() ;
 
         if (!CONFIG.blocksLoader().equals(""))
             ethereum.getBlockLoader().loadBlocks();
