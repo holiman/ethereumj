@@ -1,11 +1,13 @@
 package org.ethereum.vm.program;
 
+import org.ethereum.config.SystemProperties;
 import org.ethereum.core.BlockHeader;
 import org.ethereum.core.Repository;
 import org.ethereum.core.Transaction;
 import org.ethereum.crypto.HashUtil;
 import org.ethereum.db.ContractDetails;
 import org.ethereum.util.ByteUtil;
+import org.ethereum.util.FastByteComparisons;
 import org.ethereum.util.Utils;
 import org.ethereum.vm.*;
 import org.ethereum.vm.MessageCall.MsgType;
@@ -311,7 +313,13 @@ public class Program {
 
         addInternalTx(null, null, owner, obtainer, balance, null, "suicide");
 
-        transfer(getStorage(), owner, obtainer, balance);
+        if (FastByteComparisons.compareTo(owner, 0, 20, obtainer, 0, 20) == 0) {
+            // if owner == obtainer just zeroing account according to Yellow Paper
+            getStorage().addBalance(owner, balance.negate());
+        } else {
+            transfer(getStorage(), owner, obtainer, balance);
+        }
+
         getResult().addDeleteAccount(this.getOwnerAddress());
     }
 
@@ -382,7 +390,7 @@ public class Program {
         // [5] COOK THE INVOKE AND EXECUTE
         InternalTransaction internalTx = addInternalTx(nonce, getGasLimit(), senderAddress, null, endowment, programCode, "create");
         ProgramInvoke programInvoke = programInvokeFactory.createProgramInvoke(
-                this, new DataWord(newAddress), getOwnerAddress(), DataWord.ZERO, gasLimit,
+                this, new DataWord(newAddress), getOwnerAddress(), getCallValue(), gasLimit,
                 newBalance, null, track, this.invoke.getBlockStore(), byTestingSuite());
 
         ProgramResult result = ProgramResult.empty();
@@ -393,7 +401,7 @@ public class Program {
             vm.play(program);
             result = program.getResult();
 
-            getResult().addInternalTransactions(result.getInternalTransactions());
+            getResult().merge(result);
         }
 
         // 4. CREATE THE CONTRACT OUT OF RETURN
@@ -402,7 +410,7 @@ public class Program {
         long storageCost = getLength(code) * GasCost.CREATE_DATA;
         long afterSpend = programInvoke.getGas().longValue() - storageCost - result.getGasUsed();
         if (afterSpend < 0) {
-            if (BlockHeader.isHomestead(getNumber().longValue())) {
+            if (!SystemProperties.CONFIG.getBlockchainConfig().getConfigForBlock(getNumber().longValue()).getConstants().createEmptyContractOnOOG()) {
                 result.setException(Program.Exception.notEnoughSpendingGas("No gas to return just created contract",
                         storageCost, this));
             } else {
