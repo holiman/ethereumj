@@ -7,6 +7,7 @@ import org.ethereum.util.RLPList;
 import org.ethereum.util.Utils;
 import org.spongycastle.util.Arrays;
 import org.spongycastle.util.BigIntegers;
+import org.spongycastle.util.encoders.Hex;
 
 import java.math.BigInteger;
 import java.util.List;
@@ -126,6 +127,11 @@ public class BlockHeader {
         this.stateRoot = HashUtil.EMPTY_TRIE_HASH;
     }
 
+    public String getShortDescr() {
+        return "HDR #" + getNumber() + " (" + Hex.toHexString(getHash()).substring(0,6) + " <~ "
+                + Hex.toHexString(getParentHash()).substring(0,6) + ")";
+    }
+    
     public boolean isGenesis() {
         return this.getNumber() == Genesis.NUMBER;
     }
