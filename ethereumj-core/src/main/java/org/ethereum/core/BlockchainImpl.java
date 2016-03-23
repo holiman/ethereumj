@@ -333,9 +333,9 @@ public class BlockchainImpl implements Blockchain, org.ethereum.facade.Blockchai
         // The simple case got the block
         // to connect to the main chain
         if (bestBlock.isParentOf(block)) {
-            recordBlock(block);
 
             if (add(block)) {
+                recordBlock(block);
                 EventDispatchThread.invokeLater(new Runnable() {
                     @Override
                     public void run() {
@@ -349,16 +349,18 @@ public class BlockchainImpl implements Blockchain, org.ethereum.facade.Blockchai
         } else {
 
             if (blockStore.isBlockExist(block.getParentHash())) {
-                recordBlock(block);
                 ImportResult result = tryConnectAndFork(block);
 
-                if (result == IMPORTED_BEST) {
-                    EventDispatchThread.invokeLater(new Runnable() {
-                        @Override
-                        public void run() {
-                            pendingState.processBest(block);
-                        }
-                    });
+                if(result.isSuccessful()){
+                	recordBlock(block);
+                    if (result == IMPORTED_BEST) {
+                        EventDispatchThread.invokeLater(new Runnable() {
+                            @Override
+                            public void run() {
+                                pendingState.processBest(block);
+                            }
+                        });
+                    }
                 }
 
                 return result;
@@ -538,7 +540,6 @@ public class BlockchainImpl implements Blockchain, org.ethereum.facade.Blockchai
 
 
     public boolean isValid(BlockHeader header) {
-
         Block parentBlock = getParent(header);
 
         if (!parentHeaderValidator.validate(header, parentBlock.getHeader())) {
@@ -632,7 +633,10 @@ public class BlockchainImpl implements Blockchain, org.ethereum.facade.Blockchai
         for (BlockHeader uncle : block.getUncleList()) {
 
             // - They are valid headers (not necessarily valid blocks)
-            if (!isValid(uncle)) return false;
+            if (!isValid(uncle)) {
+                logger.error("Invalid uncle header: " + uncle);
+                return false;
+            }
 
             //if uncle's parent's number is not less than currentBlock - UNCLE_GEN_LIMIT, mark invalid
             boolean isValid = !(getParent(uncle).getNumber() < (block.getNumber() - UNCLE_GENERATION_LIMIT));
@@ -655,11 +659,6 @@ public class BlockchainImpl implements Blockchain, org.ethereum.facade.Blockchai
             Block uncleParent = blockStore.getBlockByHash(uncle.getParentHash());
             if (!ancestors.contains(new ByteArrayWrapper(uncleParent.getHash()))) {
                 logger.error("Uncle has no common parent: " + Hex.toHexString(uncle.getHash()));
-                return false;
-            }
-
-            if (!isValid(uncle)) {
-                logger.error("Invalid uncle header: " + uncle);
                 return false;
             }
         }
